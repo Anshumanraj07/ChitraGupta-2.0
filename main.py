@@ -121,3 +121,51 @@ def delete_journal(journal_id: str, user_id: str = Header(...)):
     if response.status_code in [200, 204]:
         return {"status": "success"}
     raise HTTPException(status_code=response.status_code, detail=response.text)
+
+
+# 7. Analyze Karma (Weekly Summary)
+@app.get("/api/analyze")
+def analyze_karma(user_id: str = Header(...)):
+    # Fetch recent tasks and journals
+    tasks_url = f"{SUPABASE_URL}/rest/v1/tasks?user_id=eq.{user_id}&order=created_at.desc&limit=15"
+    journals_url = f"{SUPABASE_URL}/rest/v1/journals?user_id=eq.{user_id}&order=created_at.desc&limit=10"
+    
+    tasks_req = requests.get(tasks_url, headers=headers)
+    journals_req = requests.get(journals_url, headers=headers)
+    
+    tasks_data = tasks_req.json() if tasks_req.status_code == 200 else []
+    journals_data = journals_req.json() if journals_req.status_code == 200 else []
+    
+    # Prepare data for AI
+    task_strings = [f"- {t.get('task_title')} (Status: {'Done' if t.get('is_completed') else 'Pending'})" for t in tasks_data]
+    journal_strings = [f"- Mood: {j.get('mood')} | {j.get('summary')}" for j in journals_data]
+    
+    user_context = f"Recent Tasks:\n{chr(10).join(task_strings)}\n\nRecent Journals:\n{chr(10).join(journal_strings)}"
+    
+    # Groq AI Call
+    groq_api_key = os.getenv("GROQ_API_KEY")
+    groq_headers = {"Authorization": f"Bearer {groq_api_key}", "Content-Type": "application/json"}
+    
+    prompt = f"""
+    Analyze the user's recent tasks and journal entries below.
+    Provide a simple, clear, and highly objective summary of their recent focus areas, productivity, and state of mind.
+    Rule 1: Keep the tone practical and direct. Do NOT use any forced personas.
+    Rule 2: At the very end, provide exactly ONE highly relevant quote from a renowned philosopher that perfectly matches their current situation or subject matter.
+    
+    Data:
+    {user_context}
+    """
+    
+    payload = {
+        "model": "llama3-70b-8192",
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.5
+    }
+    
+    groq_res = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=groq_headers, json=payload)
+    
+    if groq_res.status_code == 200:
+        analysis = groq_res.json()["choices"][0]["message"]["content"]
+        return {"status": "success", "analysis": analysis}
+    else:
+        raise HTTPException(status_code=500, detail="Failed to analyze karma.")
