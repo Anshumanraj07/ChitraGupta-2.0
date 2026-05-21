@@ -1,6 +1,6 @@
 import os
 import requests
-from fastapi import FastAPI, HTTPException, Header
+from fastapi import FastAPI, HTTPException, Header, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -11,8 +11,14 @@ load_dotenv()
 
 app = FastAPI(title="ChitraGupta API")
 
+# --- ENV VARIABLES ---
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+MASTER_USER_ID = os.getenv("MASTER_USER_ID")
+
+TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 
 headers = {
     "apikey": SUPABASE_KEY,
@@ -21,6 +27,7 @@ headers = {
     "Prefer": "return=representation"
 }
 
+# --- Pydantic Models ---
 class UserInput(BaseModel):
     user_input: str
 
@@ -33,6 +40,7 @@ class TaskUpdate(BaseModel):
 class JournalUpdate(BaseModel):
     raw_input: str = None   
 
+# --- Routes ---
 @app.get("/")
 def serve_frontend():
     return FileResponse("index.html")
@@ -151,7 +159,7 @@ def analyze_karma(user_id: str = Header(...)):
     prompt = f"Analyze the user's focus and productivity strictly based on this data. Be objective. No fluff.\n\nData:\n{user_context}"
     
     payload = {
-        "model": "llama-3.1-8b-instant",  # NAYA LIVE MODEL YAHAN UPDATE KIYA HAI
+        "model": "llama-3.1-8b-instant",  
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.3
     }
@@ -160,3 +168,72 @@ def analyze_karma(user_id: str = Header(...)):
     if groq_res.status_code == 200:
         return {"status": "success", "analysis": groq_res.json()["choices"][0]["message"]["content"]}
     raise HTTPException(status_code=500, detail="Analysis failed")
+
+# ==========================================
+# 🚀 TELEGRAM BOT ENGINE START
+# ==========================================
+
+# 1. Endpoint to connect Telegram to our Render Server
+@app.get("/api/setup-telegram")
+def setup_telegram(request: Request):
+    if not TELEGRAM_BOT_TOKEN:
+        return {"error": "TELEGRAM_BOT_TOKEN is missing"}
+    
+    # Dynamically get your Render URL
+    base_url = str(request.base_url).rstrip("/")
+    webhook_url = f"{base_url}/webhook/telegram"
+    
+    # Tell Telegram to send all messages to this URL
+    response = requests.post(f"{TELEGRAM_API_URL}/setWebhook", json={"url": webhook_url})
+    return response.json()
+
+# 2. Endpoint that receives messages from Telegram
+@app.post("/webhook/telegram")
+async def telegram_webhook(update: dict):
+    try:
+        message = update.get("message", {})
+        chat_id = str(message.get("chat", {}).get("id", ""))
+        text = message.get("text", "")
+
+        # Security Check: Ignore if text is empty or someone else is messaging the bot
+        if not text or chat_id != str(TELEGRAM_CHAT_ID):
+            return {"status": "ignored"}
+
+        # Send a "Processing" message so you know it's working
+        requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={"chat_id": chat_id, "text": "⏳ Processing..."})
+
+        # Send text to our AI Brain
+        ai_data = parse_user_input(text)
+        data_type = ai_data.get("type", "task")
+
+        # Save to DB and prepare reply
+        if data_type == "task":
+            payload = {
+                "user_id": MASTER_USER_ID,
+                "raw_input": text,
+                "task_title": ai_data.get("task_title", "Untitled Task"),
+                "category": ai_data.get("category", "General"),
+                "priority": ai_data.get("priority", "Medium"),
+                "chitragupt_wisdom": ai_data.get("chitragupt_wisdom", ""),
+                "sub_tasks": ai_data.get("sub_tasks", [])
+            }
+            requests.post(f"{SUPABASE_URL}/rest/v1/tasks", headers=headers, json=payload)
+            reply = f"✅ **Task Logged:**\n{payload['task_title']}\n\n💡 Tip: {payload['chitragupt_wisdom']}"
+        else:
+            payload = {
+                "user_id": MASTER_USER_ID,
+                "raw_input": text,
+                "mood": ai_data.get("mood", "Neutral"),
+                "summary": ai_data.get("summary", "")
+            }
+            requests.post(f"{SUPABASE_URL}/rest/v1/journals", headers=headers, json=payload)
+            reply = f"📔 **Journal Logged:**\nMood: {payload['mood']}\n\n🔍 Insight: {payload['summary']}"
+
+        # Send the final result back to you on Telegram
+        requests.post(f"{TELEGRAM_API_URL}/sendMessage", json={"chat_id": chat_id, "text": reply, "parse_mode": "Markdown"})
+        
+        return {"status": "success"}
+
+    except Exception as e:
+        print(f"Telegram Webhook Error: {e}")
+        return {"status": "error"}
