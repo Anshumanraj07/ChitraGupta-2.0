@@ -26,33 +26,40 @@ def parse_user_input(user_input: str) -> dict:
         "Content-Type": "application/json"
     }
 
-    # System prompt ko aur strict banaya
-    system_prompt = "You are a strict data router. You output ONLY JSON. No explanations, no markdown."
+    system_prompt = "You are a precise data extraction agent. You output ONLY raw valid JSON. No markdown codeblocks, no conversational text."
     
-    # 8B Model ke liye naya dumb-proof prompt
+    # Prompt ko instructions-based banaya taaki AI copy-paste na kare
     user_prompt = f"""
-    You must categorize the following user input into EXACTLY ONE of two types: 'task' OR 'journal'.
+    Analyze the USER INPUT provided below and categorize it into either a 'task' or a 'journal'.
     
     USER INPUT: "{user_input}"
     
-    RULE 1: If the input contains ANY action item, to-do, reminder, or plan, you MUST format it as a task:
+    Instructions for routing:
+    1. If the input contains an action item, plan, reminder, or to-do, treat it as a 'task'.
+    2. If the input is just a thought, rant, log, or emotion with no immediate action, treat it as a 'journal'.
+
+    Strict Output Schema Requirements:
+    
+    If it is a 'task', generate a JSON object where you must replace the instruction strings with real data from the user input:
     {{
         "type": "task",
-        "task_title": "Clear action title",
-        "category": "Action",
-        "priority": "Medium",
-        "sub_tasks": [{{"title": "Step 1", "is_completed": false}}],
-        "chitragupt_wisdom": "Execution tip"
+        "task_title": "Write a short, clear objective title based on the user input",
+        "category": "Classify into Action, Dev, Routine, or Life",
+        "priority": "High, Medium, or Low based on urgency",
+        "sub_tasks": [
+            {{"title": "Create a small, bite-sized actionable sub-task broken down from the main input", "is_completed": false}}
+        ],
+        "chitragupt_wisdom": "Write one sharp, unique technical execution tip specific to this task"
     }}
-    
-    RULE 2: ONLY if the input is a pure thought, emotion, or rant with NO action required, format it as a journal:
+
+    If it is a 'journal', generate a JSON object where you analyze the user input:
     {{
         "type": "journal",
-        "mood": "Objective Mood",
-        "summary": "Analytical insight"
+        "mood": "Identify the objective mood from the text (e.g., Focused, Overwhelmed, Idle)",
+        "summary": "Provide a sharp, development-focused analytical or R&D insight about this entry. Do not write philosophy or fluff."
     }}
     
-    Return exactly ONE JSON object based on the rules. Do not merge them.
+    Generate only the final JSON object. Do not wrap in ```json.
     """
 
     payload = {
@@ -61,7 +68,7 @@ def parse_user_input(user_input: str) -> dict:
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
         ],
-        "temperature": 0.1,  # Temperature kam kiya taaki hallucinate na kare
+        "temperature": 0.1,
         "response_format": {"type": "json_object"}
     }
 
