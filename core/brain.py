@@ -54,7 +54,7 @@ def parse_user_input(user_input: str) -> dict:
     """
 
     payload = {
-        "model": "llama3-8b-8192",  # NAYA LIVE MODEL YAHAN UPDATE KIYA HAI
+        "model": "llama-3.1-8b-instant",  # NAYA LIVE MODEL YAHAN UPDATE KIYA HAI
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}

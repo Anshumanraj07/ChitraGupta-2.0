@@ -151,7 +151,7 @@ def analyze_karma(user_id: str = Header(...)):
     prompt = f"Analyze the user's focus and productivity strictly based on this data. Be objective. No fluff.\n\nData:\n{user_context}"
     
     payload = {
-        "model": "llama3-8b-8192",  # NAYA LIVE MODEL YAHAN UPDATE KIYA HAI
+        "model": "llama-3.1-8b-instant",  # NAYA LIVE MODEL YAHAN UPDATE KIYA HAI
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.3
     }
