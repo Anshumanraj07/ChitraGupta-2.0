@@ -52,30 +52,27 @@
 <body class="min-h-screen flex flex-col items-center p-6 selection:bg-neutral-800 selection:text-white">
 
     <div id="topNav" class="absolute top-6 right-6 z-50 hidden">
-        <button onclick="logout()" class="text-[11px] font-medium tracking-wide text-neutral-500 hover:text-white transition-colors">
-            Logout
-        </button>
+        <button onclick="logout()" class="text-[11px] font-medium tracking-wide text-neutral-500 hover:text-white transition-colors">Logout</button>
     </div>
 
+    <!-- AUTHENTICATION -->
     <div id="authScreen" class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black">
         <div class="max-w-sm w-full p-8">
             <h2 class="text-2xl font-semibold text-center mb-1">ChitraGupta</h2>
             <p class="text-sm text-neutral-500 text-center mb-8">Sign in to your ledger</p>
-            
             <div class="space-y-3">
-                <input type="email" id="emailInput" placeholder="Email" class="w-full bg-[#111] border border-[#222] rounded-lg p-3 text-sm text-white outline-none focus:border-[#555] transition-colors">
-                <input type="password" id="passwordInput" placeholder="Password (Min 6)" class="w-full bg-[#111] border border-[#222] rounded-lg p-3 text-sm text-white outline-none focus:border-[#555] transition-colors">
-                
+                <input type="email" id="emailInput" placeholder="Email" class="w-full bg-[#111] border border-[#222] rounded-lg p-3 text-sm text-white outline-none focus:border-[#555]">
+                <input type="password" id="passwordInput" placeholder="Password (Min 6)" class="w-full bg-[#111] border border-[#222] rounded-lg p-3 text-sm text-white outline-none focus:border-[#555]">
                 <p id="authError" class="text-red-400 text-xs hidden text-center"></p>
-
                 <div class="flex gap-3 pt-2">
-                    <button onclick="handleAuth('login')" class="flex-1 bg-white text-black font-medium text-sm py-2.5 rounded-lg hover:bg-neutral-200 transition-all">Log In</button>
-                    <button onclick="handleAuth('signup')" class="flex-1 bg-transparent border border-[#333] text-white font-medium text-sm py-2.5 rounded-lg hover:bg-[#111] transition-all">Sign Up</button>
+                    <button onclick="handleAuth('login')" class="flex-1 bg-white text-black font-medium text-sm py-2.5 rounded-lg hover:bg-neutral-200">Log In</button>
+                    <button onclick="handleAuth('signup')" class="flex-1 bg-transparent border border-[#333] text-white font-medium text-sm py-2.5 rounded-lg hover:bg-[#111]">Sign Up</button>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- MAIN APP -->
     <div id="appScreen" class="max-w-xl w-full flex-1 space-y-10 hidden mt-10">
         <header class="text-center">
             <h1 class="text-3xl font-semibold tracking-tight">ChitraGupta <span class="text-neutral-500">.</span></h1>
@@ -85,10 +82,10 @@
         <div id="inputContainer" class="border border-[#222] rounded-2xl bg-[#0a0a0a] transition-all duration-300 focus-within:border-[#444]">
             <textarea id="taskInput" rows="2" class="w-full bg-transparent p-5 text-white outline-none resize-none placeholder-neutral-600 text-base" placeholder="Declare an action or log a thought..."></textarea>
             <div class="flex justify-between items-center px-5 pb-4">
-                <button id="micBtn" onclick="toggleMic()" class="text-neutral-500 hover:text-white transition-colors"><i class="fas fa-microphone"></i></button>
+                <button id="micBtn" onclick="toggleMic()" class="text-neutral-500 hover:text-white"><i class="fas fa-microphone"></i></button>
                 <div class="flex items-center gap-4">
                     <div id="loading" class="hidden text-[10px] font-medium text-neutral-500 animate-pulse uppercase tracking-wider">Processing...</div>
-                    <button onclick="sendData()" class="bg-white text-black text-xs font-medium px-5 py-2 rounded-lg hover:bg-neutral-200 transition-colors">Submit</button>
+                    <button onclick="sendData()" class="bg-white text-black text-xs font-medium px-5 py-2 rounded-lg hover:bg-neutral-200">Submit</button>
                 </div>
             </div>
         </div>
@@ -99,7 +96,7 @@
                 <button onclick="switchView('tasks')" id="tab-tasks" class="tab-btn inactive-tab text-[11px] uppercase tracking-widest font-medium">Ledger</button>
                 <button onclick="switchView('journals')" id="tab-journals" class="tab-btn inactive-tab text-[11px] uppercase tracking-widest font-medium">Journal</button>
             </div>
-            <button onclick="analyzeKarma()" class="text-[10px] uppercase tracking-widest font-medium text-neutral-400 hover:text-white border border-[#333] px-3 py-1 rounded-md transition-colors flex items-center gap-2">
+            <button onclick="analyzeKarma()" class="text-[10px] uppercase tracking-widest font-medium text-neutral-400 hover:text-white border border-[#333] px-3 py-1 rounded-md flex items-center gap-2">
                 <i class="fas fa-bolt"></i> Analyze
             </button>
         </div>
@@ -107,6 +104,7 @@
         <div id="contentArea" class="space-y-4 pb-20"></div>
     </div>
 
+    <!-- MODALS -->
     <div id="analysisModal" class="fixed inset-0 z-[100] modal-bg flex items-center justify-center hidden opacity-0 transition-opacity duration-300">
         <div class="bg-[#111] border border-[#333] rounded-2xl max-w-lg w-[90%] p-8 relative shadow-2xl">
             <button onclick="closeModal()" class="absolute top-5 right-5 text-neutral-500 hover:text-white"><i class="fas fa-times"></i></button>
@@ -121,8 +119,8 @@
             <textarea id="editInputText" rows="4" class="w-full bg-[#1a1a1a] border border-[#333] rounded-lg p-3 text-sm text-white outline-none focus:border-[#555] resize-none mb-4"></textarea>
             <div class="flex justify-end gap-3 items-center">
                 <span id="editLoading" class="hidden text-[10px] text-neutral-500 animate-pulse tracking-widest uppercase pr-3">Thinking...</span>
-                <button onclick="closeEditModal()" class="text-xs text-neutral-400 hover:text-white transition-colors px-3 py-2">Cancel</button>
-                <button id="saveEditBtn" onclick="saveEdit()" class="bg-white text-black text-xs font-medium px-5 py-2 rounded-lg hover:bg-neutral-200 transition-colors">Save</button>
+                <button onclick="closeEditModal()" class="text-xs text-neutral-400 hover:text-white px-3 py-2">Cancel</button>
+                <button id="saveEditBtn" onclick="saveEdit()" class="bg-white text-black text-xs font-medium px-5 py-2 rounded-lg hover:bg-neutral-200">Save</button>
             </div>
         </div>
     </div>
@@ -138,12 +136,7 @@
 
         window.onload = async () => {
             const { data: { session } } = await supabaseClient.auth.getSession();
-            if (session) {
-                currentUser = session.user;
-                showApp();
-            } else {
-                showAuth();
-            }
+            if (session) { currentUser = session.user; showApp(); } else { showAuth(); }
         };
 
         async function handleAuth(action) {
@@ -151,38 +144,20 @@
             const password = document.getElementById('passwordInput').value;
             const errorText = document.getElementById('authError');
             errorText.classList.add('hidden');
-            if (!email || password.length < 6) {
-                errorText.innerText = "Valid email and min 6 char password required.";
-                errorText.classList.remove('hidden'); return;
-            }
+            if (!email || password.length < 6) { errorText.innerText = "Valid email and min 6 char password required."; errorText.classList.remove('hidden'); return; }
             let result = action === 'signup' ? await supabaseClient.auth.signUp({ email, password }) : await supabaseClient.auth.signInWithPassword({ email, password });
-            if (result.error) { errorText.innerText = result.error.message; errorText.classList.remove('hidden'); } 
-            else { currentUser = result.data.user; showApp(); }
+            if (result.error) { errorText.innerText = result.error.message; errorText.classList.remove('hidden'); } else { currentUser = result.data.user; showApp(); }
         }
 
         async function logout() { await supabaseClient.auth.signOut(); currentUser = null; showAuth(); }
 
-        function showApp() {
-            document.getElementById('authScreen').classList.add('hidden');
-            document.getElementById('appScreen').classList.remove('hidden');
-            document.getElementById('topNav').classList.remove('hidden');
-            switchView('guide'); 
-        }
-
-        function showAuth() {
-            document.getElementById('authScreen').classList.remove('hidden');
-            document.getElementById('appScreen').classList.add('hidden');
-            document.getElementById('topNav').classList.add('hidden');
-        }
+        function showApp() { document.getElementById('authScreen').classList.add('hidden'); document.getElementById('appScreen').classList.remove('hidden'); document.getElementById('topNav').classList.remove('hidden'); switchView('guide'); }
+        function showAuth() { document.getElementById('authScreen').classList.remove('hidden'); document.getElementById('appScreen').classList.add('hidden'); document.getElementById('topNav').classList.add('hidden'); }
 
         function switchView(view) {
             currentView = view;
-            ['guide', 'tasks', 'journals'].forEach(v => {
-                document.getElementById(`tab-${v}`).className = v === view ? 'tab-btn active-tab text-[11px] uppercase tracking-widest font-medium' : 'tab-btn inactive-tab text-[11px] uppercase tracking-widest font-medium';
-            });
-            if (view === 'tasks') fetchTasks();
-            else if (view === 'journals') fetchJournals();
-            else renderGuide();
+            ['guide', 'tasks', 'journals'].forEach(v => { document.getElementById(`tab-${v}`).className = v === view ? 'tab-btn active-tab text-[11px] uppercase tracking-widest font-medium' : 'tab-btn inactive-tab text-[11px] uppercase tracking-widest font-medium'; });
+            if (view === 'tasks') fetchTasks(); else if (view === 'journals') fetchJournals(); else renderGuide();
         }
 
         function getHeaders() { return { 'Content-Type': 'application/json', 'user-id': currentUser.id }; }
@@ -194,11 +169,9 @@
             loader.classList.remove('hidden'); input.disabled = true;
             try {
                 const res = await fetch('/api/parse-task', { method: 'POST', headers: getHeaders(), body: JSON.stringify({ user_input: input.value }) });
-                const responseData = await res.json();
-                if (res.ok) {
-                    input.value = '';
-                    responseData.type === 'journal' ? switchView('journals') : switchView('tasks');
-                }
+                const data = await res.json();
+                input.value = '';
+                data.type === 'journal' ? switchView('journals') : switchView('tasks');
             } finally { loader.classList.add('hidden'); input.disabled = false; }
         }
 
@@ -206,33 +179,21 @@
             editContext = { type, id };
             document.getElementById('editInputText').value = decodeURIComponent(currentText);
             const modal = document.getElementById('editModal');
-            modal.classList.remove('hidden');
-            setTimeout(() => modal.classList.remove('opacity-0'), 10);
+            modal.classList.remove('hidden'); setTimeout(() => modal.classList.remove('opacity-0'), 10);
         }
 
-        function closeEditModal() {
-            const modal = document.getElementById('editModal');
-            modal.classList.add('opacity-0');
-            setTimeout(() => modal.classList.add('hidden'), 300);
-        }
+        function closeEditModal() { const modal = document.getElementById('editModal'); modal.classList.add('opacity-0'); setTimeout(() => modal.classList.add('hidden'), 300); }
 
         async function saveEdit() {
             const newText = document.getElementById('editInputText').value;
             const btn = document.getElementById('saveEditBtn');
             const loading = document.getElementById('editLoading');
-            
             btn.disabled = true; loading.classList.remove('hidden');
-            
             const url = editContext.type === 'task' ? `/api/tasks/${editContext.id}` : `/api/journals/${editContext.id}`;
             const payload = editContext.type === 'task' ? { task_title: newText } : { raw_input: newText };
-            
             await fetch(url, { method: 'PATCH', headers: getHeaders(), body: JSON.stringify(payload) });
-            
-            btn.disabled = false; loading.classList.add('hidden');
-            closeEditModal();
-            
-            if(editContext.type === 'task') fetchTasks();
-            else fetchJournals();
+            btn.disabled = false; loading.classList.add('hidden'); closeEditModal();
+            editContext.type === 'task' ? fetchTasks() : fetchJournals();
         }
 
         async function updateSubTask(taskId, subIndex, tasksArrayStr) {
@@ -265,7 +226,7 @@
                 <div class="guide-card p-6 space-y-6 text-sm text-neutral-300 font-light leading-relaxed">
                     <div>
                         <h3 class="text-white font-medium mb-2 text-base">How ChitraGupta Works</h3>
-                        <p class="mb-3">Task ko explain karke define kare AI usse chhote task yaa kuchh manually entered task ki tarah list kar dega.</p>
+                        <p class="mb-3">Task ko explain karke define kare, AI usse actionable sub-tasks ki tarah list kar dega.</p>
                         <div class="bg-[#1a1a1a] p-4 rounded-xl border border-[#222] text-xs space-y-1">
                             <span class="text-neutral-500 font-medium block uppercase tracking-wider mb-1">Example:</span>
                             <span class="text-white">"I need to prepare for my AI presentation tomorrow"</span>
@@ -279,7 +240,6 @@
                     <div class="border-t border-[#222] pt-4">
                         <h3 class="text-white font-medium mb-2 text-base">Notifications & Deadlines</h3>
                         <p class="text-neutral-400">Task ki deadline mention kar dijiye taaki ham aapko deadline ke pahle notify kar de.</p>
-                        <p class="text-xs text-neutral-500 italic mt-1">Note: Notifications will be routed automatically through our upcoming Telegram Bot integration directly to your phone.</p>
                     </div>
                     <div class="border-t border-[#222] pt-4">
                         <h3 class="text-white font-medium mb-2 text-base">The Journal</h3>
@@ -308,6 +268,9 @@
                 card.className = `task-card group p-5 ${task.is_completed ? 'completed-card' : ''}`;
                 const safeSubTasks = encodeURIComponent(JSON.stringify(task.sub_tasks));
                 const safeTextToEdit = encodeURIComponent(task.raw_input || task.task_title);
+                
+                // Add wisdom/error text if present
+                const wisdomHtml = task.chitragupt_wisdom ? `<div class="mt-4 pt-3 border-t border-[#222]"><p class="text-[10px] text-neutral-500 font-medium">${task.chitragupt_wisdom}</p></div>` : '';
 
                 card.innerHTML = `
                     <div class="flex justify-between items-start mb-4">
@@ -325,6 +288,7 @@
                             </div>
                         `).join('') : ''}
                     </div>
+                    ${wisdomHtml}
                 `;
                 area.appendChild(card);
             });
