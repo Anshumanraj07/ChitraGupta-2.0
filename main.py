@@ -5,11 +5,12 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
+# Tera AI logic function import ho raha hai
 from core.brain import parse_user_input
 
 load_dotenv()
 
-app = FastAPI(title="ChitraGupt 2.0 API")
+app = FastAPI(title="ChitraGupta API")
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
@@ -22,19 +23,25 @@ headers = {
     "Prefer": "return=representation"
 }
 
+# --- Pydantic Models ---
 class UserInput(BaseModel):
     user_input: str
 
 class TaskUpdate(BaseModel):
     is_completed: bool = None
     sub_tasks: list = None
+    task_title: str = None  # Manual text edit ke liye
 
+class JournalUpdate(BaseModel):
+    summary: str = None     # Manual text edit ke liye
+
+# --- Routes ---
 
 @app.get("/")
 def serve_frontend():
     return FileResponse("index.html")
 
-# 1. Fetch Tasks (Ab sirf logged-in user ka data aayega)
+# 1. Fetch Tasks
 @app.get("/api/tasks")
 def get_tasks(user_id: str = Header(...)):
     url = f"{SUPABASE_URL}/rest/v1/tasks?user_id=eq.{user_id}&order=created_at.desc"
@@ -43,7 +50,7 @@ def get_tasks(user_id: str = Header(...)):
         return {"status": "success", "data": response.json()}
     raise HTTPException(status_code=response.status_code, detail=response.text)
 
-# 2. Fetch Journals (Ab sirf logged-in user ka data aayega)
+# 2. Fetch Journals
 @app.get("/api/journals")
 def get_journals(user_id: str = Header(...)):
     url = f"{SUPABASE_URL}/rest/v1/journals?user_id=eq.{user_id}&order=created_at.desc"
@@ -52,7 +59,7 @@ def get_journals(user_id: str = Header(...)):
         return {"status": "success", "data": response.json()}
     raise HTTPException(status_code=response.status_code, detail=response.text)
 
-# 3. Smart Parser & Router (Sath me user_id save karega)
+# 3. Smart Parser & Router
 @app.post("/api/parse-task")
 def parse_and_save_task(data: UserInput, user_id: str = Header(...)):
     ai_data = parse_user_input(data.user_input)
@@ -60,7 +67,7 @@ def parse_and_save_task(data: UserInput, user_id: str = Header(...)):
     
     if data_type == "task":
         payload = {
-            "user_id": user_id,  # <-- Har entry ke sath User ID attach hogi
+            "user_id": user_id,
             "raw_input": data.user_input,
             "task_title": ai_data.get("task_title"),
             "category": ai_data.get("category"),
@@ -75,11 +82,12 @@ def parse_and_save_task(data: UserInput, user_id: str = Header(...)):
         
     else:
         payload = {
-            "user_id": user_id,  # <-- Har entry ke sath User ID attach hogi
+            "user_id": user_id,
             "raw_input": data.user_input,
-            "mood": ai_data.get("mood"),
+            # Database me save hoga, par UI me ab nahi dikhega kyunki humne hata diya hai
+            "mood": ai_data.get("mood", "Neutral"),
             "summary": ai_data.get("summary"),
-            "philosophical_insight": ai_data.get("philosophical_insight")
+            "philosophical_insight": ai_data.get("philosophical_insight", "")
         }
         url = f"{SUPABASE_URL}/rest/v1/journals"
         response = requests.post(url, headers=headers, json=payload)
@@ -89,22 +97,29 @@ def parse_and_save_task(data: UserInput, user_id: str = Header(...)):
         return {"status": "success", "message": message, "type": data_type, "data": response.json()}
     raise HTTPException(status_code=response.status_code, detail=response.text)
 
-# 4. Task Update (Security: Sirf apna task update kar sakega)
+# 4. Task Update (Checkbox + Manual Title Edit)
 @app.patch("/api/tasks/{task_id}")
 def update_task(task_id: str, update_data: TaskUpdate, user_id: str = Header(...)):
     url = f"{SUPABASE_URL}/rest/v1/tasks?id=eq.{task_id}&user_id=eq.{user_id}"
-    payload = {}
-    if update_data.is_completed is not None:
-        payload["is_completed"] = update_data.is_completed
-    if update_data.sub_tasks is not None:
-        payload["sub_tasks"] = update_data.sub_tasks
-
+    payload = {k: v for k, v in update_data.dict().items() if v is not None}
+    
     response = requests.patch(url, headers=headers, json=payload)
     if response.status_code in [200, 204]:
         return {"status": "success"}
     raise HTTPException(status_code=response.status_code, detail=response.text)
 
-# 5. Delete Task
+# 5. Journal Update (Manual Summary Edit)
+@app.patch("/api/journals/{journal_id}")
+def update_journal(journal_id: str, update_data: JournalUpdate, user_id: str = Header(...)):
+    url = f"{SUPABASE_URL}/rest/v1/journals?id=eq.{journal_id}&user_id=eq.{user_id}"
+    payload = {k: v for k, v in update_data.dict().items() if v is not None}
+    
+    response = requests.patch(url, headers=headers, json=payload)
+    if response.status_code in [200, 204]:
+        return {"status": "success"}
+    raise HTTPException(status_code=response.status_code, detail=response.text)
+
+# 6. Delete Task
 @app.delete("/api/tasks/{task_id}")
 def delete_task(task_id: str, user_id: str = Header(...)):
     url = f"{SUPABASE_URL}/rest/v1/tasks?id=eq.{task_id}&user_id=eq.{user_id}"
@@ -113,7 +128,7 @@ def delete_task(task_id: str, user_id: str = Header(...)):
         return {"status": "success"}
     raise HTTPException(status_code=response.status_code, detail=response.text)
 
-# 6. Delete Journal
+# 7. Delete Journal
 @app.delete("/api/journals/{journal_id}")
 def delete_journal(journal_id: str, user_id: str = Header(...)):
     url = f"{SUPABASE_URL}/rest/v1/journals?id=eq.{journal_id}&user_id=eq.{user_id}"
@@ -122,11 +137,9 @@ def delete_journal(journal_id: str, user_id: str = Header(...)):
         return {"status": "success"}
     raise HTTPException(status_code=response.status_code, detail=response.text)
 
-
-# 7. Analyze Karma (Weekly Summary)
+# 8. Analyze Karma (Weekly Summary)
 @app.get("/api/analyze")
 def analyze_karma(user_id: str = Header(...)):
-    # Fetch recent tasks and journals
     tasks_url = f"{SUPABASE_URL}/rest/v1/tasks?user_id=eq.{user_id}&order=created_at.desc&limit=15"
     journals_url = f"{SUPABASE_URL}/rest/v1/journals?user_id=eq.{user_id}&order=created_at.desc&limit=10"
     
@@ -136,13 +149,12 @@ def analyze_karma(user_id: str = Header(...)):
     tasks_data = tasks_req.json() if tasks_req.status_code == 200 else []
     journals_data = journals_req.json() if journals_req.status_code == 200 else []
     
-    # Prepare data for AI
     task_strings = [f"- {t.get('task_title')} (Status: {'Done' if t.get('is_completed') else 'Pending'})" for t in tasks_data]
-    journal_strings = [f"- Mood: {j.get('mood')} | {j.get('summary')}" for j in journals_data]
+    # Journal data cleanup logic - extracting only summary to avoid fluff
+    journal_strings = [f"- {j.get('summary')}" for j in journals_data]
     
     user_context = f"Recent Tasks:\n{chr(10).join(task_strings)}\n\nRecent Journals:\n{chr(10).join(journal_strings)}"
     
-    # Groq AI Call
     groq_api_key = os.getenv("GROQ_API_KEY")
     groq_headers = {"Authorization": f"Bearer {groq_api_key}", "Content-Type": "application/json"}
     
