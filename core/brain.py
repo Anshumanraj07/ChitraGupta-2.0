@@ -1,62 +1,100 @@
 import os
 import json
-from groq import Groq
+import requests
 from dotenv import load_dotenv
 
 load_dotenv()
 
-client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-def parse_user_input(user_text: str):
-    system_prompt = """
-    You are ChitraGupt 2.0, an advanced Agentic AI. You act as a divine karma accountant and a philosophical observer.
-    Analyze the user's input and logically classify it.
-    
-    - If the input contains ANY actionable item, work, or plan, classify it as "task".
-    - If the input is purely a thought, emotion, rant, or reflection with no clear action, classify it as "journal".
+def parse_user_input(user_input: str) -> dict:
+    """
+    Parses raw user input using Groq's Llama-3 model and returns a structured dictionary.
+    Accurately routes the input as either an actionable 'task' or a reflective 'journal'.
+    """
+    if not GROQ_API_KEY:
+        print("Error: GROQ_API_KEY not found in environment variables.")
+        return {
+            "type": "task", 
+            "task_title": user_input, 
+            "category": "General", 
+            "priority": "Medium", 
+            "sub_tasks": [], 
+            "chitragupt_wisdom": "API key missing. Logged as raw task."
+        }
 
-    Respond ONLY with a valid JSON object matching one of the schemas below.
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json"
+    }
 
-    SCHEMA 1 (If type is "task"):
-    {
+    prompt = f"""
+    You are the core intelligence engine for ChitraGupta.
+    Analyze the user input and return a STRICT JSON output. 
+    Do not include any conversational text or markdown code block wrappers (like ```json). Just raw JSON.
+
+    If the input is an actionable task, reminder, or to-do:
+    {{
         "type": "task",
-        "task_title": "A short, actionable title in English",
-        "category": "One word category",
-        "priority": "High, Medium, or Low",
-        "estimated_time": "Time estimate",
-        "chitragupt_wisdom": "A witty, slightly detached one-liner in Hindi/Hinglish",
+        "task_title": "Clear and concise title explaining the core objective",
+        "category": "Development/Life/Academic/Routine",
+        "priority": "High/Medium/Low",
         "sub_tasks": [
-            {"title": "step 1", "is_completed": false}
-        ]
-    }
+            {{"title": "Sub task 1", "is_completed": false}},
+            {{"title": "Sub task 2", "is_completed": false}}
+        ],
+        "chitragupt_wisdom": "One sharp, practical line about this task's execution or a technical tip."
+    }}
 
-    SCHEMA 2 (If type is "journal"):
-    {
+    If the input is a thought, rant, feeling, or reflection (Journal):
+    {{
         "type": "journal",
-        "mood": "Detect the emotional state (e.g., Detached, Overwhelmed, Focused)",
-        "summary": "A 1-2 sentence clear summary of what the user is feeling or thinking",
-        "philosophical_insight": "Deep, grounding advice in Hindi/Hinglish drawing from Stoicism or Osho (Zorba the Buddha) to help the user maintain conscious individuality."
-    }
+        "mood": "Objective assessment of mood (e.g., Focused, Anxious, Reflective, Idle)",
+        "summary": "Provide a sharp, R&D or analytical insight based on the input. Look for engineering patterns, data points, logical gaps, behavior trends, or development opportunities. Strictly NO philosophical fluff."
+    }}
+
+    User Input: {user_input}
     """
 
-    try:
-        response = client.chat.completions.create(
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_text}
-            ],
-            model="llama-3.3-70b-versatile",
-            response_format={"type": "json_object"}
-        )
-        
-        json_data = json.loads(response.choices[0].message.content)
-        return json_data
+    payload = {
+        "model": "llama3-70b-8192",
+        "messages": [
+            {
+                "role": "system", 
+                "content": "You are a precise backend AI agent that outputs ONLY valid raw JSON objects matching the requested schema. No conversational filler, no markdown formatting."
+            },
+            {
+                "role": "user", 
+                "content": prompt
+            }
+        ],
+        "temperature": 0.2,
+        "response_format": {"type": "json_object"}
+    }
 
+    try:
+        response = requests.post(url, headers=headers, json=payload, timeout=12)
+        if response.status_code == 200:
+            result_json = response.json()["choices"][0]["message"]["content"]
+            return json.loads(result_json)
+        else:
+            print(f"Groq API Error: {response.status_code} - {response.text}")
+            return {
+                "type": "task", 
+                "task_title": user_input, 
+                "category": "General", 
+                "priority": "Medium", 
+                "sub_tasks": [], 
+                "chitragupt_wisdom": "AI parsing failed due to API status error."
+            }
     except Exception as e:
-        print(f"Brain parsing error: {e}")
+        print(f"Exception during ChitraGupta AI parsing: {str(e)}")
         return {
-            "type": "journal",
-            "mood": "Confused",
-            "summary": "The system failed to parse the complexity of your thoughts.",
-            "philosophical_insight": "Jab system crash ho jaye, toh samajh lo thoda theherne ka waqt aa gaya hai. Breathe."
+            "type": "task", 
+            "task_title": user_input, 
+            "category": "General", 
+            "priority": "Medium", 
+            "sub_tasks": [], 
+            "chitragupt_wisdom": "AI parsing failed due to internal exception."
         }

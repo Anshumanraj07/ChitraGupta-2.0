@@ -5,17 +5,15 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-# Tera AI logic function import ho raha hai
 from core.brain import parse_user_input
 
 load_dotenv()
 
-app = FastAPI(title="ChitraGupta API")
+app = FastAPI(title="ChitraGupta AI API")
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-# Base headers for Supabase REST API
 headers = {
     "apikey": SUPABASE_KEY,
     "Authorization": f"Bearer {SUPABASE_KEY}",
@@ -30,10 +28,11 @@ class UserInput(BaseModel):
 class TaskUpdate(BaseModel):
     is_completed: bool = None
     sub_tasks: list = None
-    task_title: str = None  # Manual text edit ke liye
+    task_title: str = None  
+    raw_input: str = None   
 
 class JournalUpdate(BaseModel):
-    summary: str = None     # Manual text edit ke liye
+    raw_input: str = None   
 
 # --- Routes ---
 
@@ -84,7 +83,6 @@ def parse_and_save_task(data: UserInput, user_id: str = Header(...)):
         payload = {
             "user_id": user_id,
             "raw_input": data.user_input,
-            # Database me save hoga, par UI me ab nahi dikhega kyunki humne hata diya hai
             "mood": ai_data.get("mood", "Neutral"),
             "summary": ai_data.get("summary"),
             "philosophical_insight": ai_data.get("philosophical_insight", "")
@@ -97,23 +95,42 @@ def parse_and_save_task(data: UserInput, user_id: str = Header(...)):
         return {"status": "success", "message": message, "type": data_type, "data": response.json()}
     raise HTTPException(status_code=response.status_code, detail=response.text)
 
-# 4. Task Update (Checkbox + Manual Title Edit)
+# 4. Task Update (AI-Powered Text Edit + Checkboxes)
 @app.patch("/api/tasks/{task_id}")
 def update_task(task_id: str, update_data: TaskUpdate, user_id: str = Header(...)):
-    url = f"{SUPABASE_URL}/rest/v1/tasks?id=eq.{task_id}&user_id=eq.{user_id}"
-    payload = {k: v for k, v in update_data.dict().items() if v is not None}
+    if update_data.task_title:
+        ai_data = parse_user_input(update_data.task_title)
+        payload = {
+            "task_title": ai_data.get("task_title"),
+            "raw_input": update_data.task_title,
+            "category": ai_data.get("category"),
+            "priority": ai_data.get("priority"),
+            "sub_tasks": ai_data.get("sub_tasks", []),
+            "chitragupt_wisdom": ai_data.get("chitragupt_wisdom")
+        }
+    else:
+        payload = {k: v for k, v in update_data.dict().items() if v is not None}
     
+    url = f"{SUPABASE_URL}/rest/v1/tasks?id=eq.{task_id}&user_id=eq.{user_id}"
     response = requests.patch(url, headers=headers, json=payload)
     if response.status_code in [200, 204]:
         return {"status": "success"}
     raise HTTPException(status_code=response.status_code, detail=response.text)
 
-# 5. Journal Update (Manual Summary Edit)
+# 5. Journal Update (AI-Powered Insight Regeneration)
 @app.patch("/api/journals/{journal_id}")
 def update_journal(journal_id: str, update_data: JournalUpdate, user_id: str = Header(...)):
+    if update_data.raw_input:
+        ai_data = parse_user_input(update_data.raw_input)
+        payload = {
+            "raw_input": update_data.raw_input,
+            "summary": ai_data.get("summary", ""),
+            "mood": ai_data.get("mood", "Neutral")
+        }
+    else:
+        payload = {}
+
     url = f"{SUPABASE_URL}/rest/v1/journals?id=eq.{journal_id}&user_id=eq.{user_id}"
-    payload = {k: v for k, v in update_data.dict().items() if v is not None}
-    
     response = requests.patch(url, headers=headers, json=payload)
     if response.status_code in [200, 204]:
         return {"status": "success"}
@@ -150,7 +167,6 @@ def analyze_karma(user_id: str = Header(...)):
     journals_data = journals_req.json() if journals_req.status_code == 200 else []
     
     task_strings = [f"- {t.get('task_title')} (Status: {'Done' if t.get('is_completed') else 'Pending'})" for t in tasks_data]
-    # Journal data cleanup logic - extracting only summary to avoid fluff
     journal_strings = [f"- {j.get('summary')}" for j in journals_data]
     
     user_context = f"Recent Tasks:\n{chr(10).join(task_strings)}\n\nRecent Journals:\n{chr(10).join(journal_strings)}"
