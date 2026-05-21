@@ -26,40 +26,42 @@ def parse_user_input(user_input: str) -> dict:
         "Content-Type": "application/json"
     }
 
-    system_prompt = "You are a data processor. You must output ONLY valid JSON. No conversational text. No markdown blockquotes."
+    # System prompt ko aur strict banaya
+    system_prompt = "You are a strict data router. You output ONLY JSON. No explanations, no markdown."
     
+    # 8B Model ke liye naya dumb-proof prompt
     user_prompt = f"""
-    Analyze the input and return a JSON object exactly like this:
+    You must categorize the following user input into EXACTLY ONE of two types: 'task' OR 'journal'.
     
-    If the input is an actionable task, to-do, or reminder:
+    USER INPUT: "{user_input}"
+    
+    RULE 1: If the input contains ANY action item, to-do, reminder, or plan, you MUST format it as a task:
     {{
         "type": "task",
-        "task_title": "Clear actionable title",
+        "task_title": "Clear action title",
         "category": "Action",
         "priority": "Medium",
-        "sub_tasks": [
-            {{"title": "Action step 1", "is_completed": false}}
-        ],
-        "chitragupt_wisdom": "One sharp execution tip or insight about this task."
+        "sub_tasks": [{{"title": "Step 1", "is_completed": false}}],
+        "chitragupt_wisdom": "Execution tip"
     }}
-
-    If the input is a thought, feeling, or reflection (Journal):
+    
+    RULE 2: ONLY if the input is a pure thought, emotion, or rant with NO action required, format it as a journal:
     {{
         "type": "journal",
         "mood": "Objective Mood",
-        "summary": "Sharp, analytical or R&D insight based on the input. No fluff."
+        "summary": "Analytical insight"
     }}
     
-    User Input: {user_input}
+    Return exactly ONE JSON object based on the rules. Do not merge them.
     """
 
     payload = {
-        "model": "llama-3.1-8b-instant",  # NAYA LIVE MODEL YAHAN UPDATE KIYA HAI
+        "model": "llama-3.1-8b-instant", 
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
         ],
-        "temperature": 0.2,
+        "temperature": 0.1,  # Temperature kam kiya taaki hallucinate na kare
         "response_format": {"type": "json_object"}
     }
 
