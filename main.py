@@ -21,7 +21,6 @@ headers = {
     "Prefer": "return=representation"
 }
 
-# --- Pydantic Models ---
 class UserInput(BaseModel):
     user_input: str
 
@@ -34,7 +33,6 @@ class TaskUpdate(BaseModel):
 class JournalUpdate(BaseModel):
     raw_input: str = None   
 
-# --- Routes ---
 @app.get("/")
 def serve_frontend():
     return FileResponse("index.html")
@@ -153,7 +151,7 @@ def analyze_karma(user_id: str = Header(...)):
     prompt = f"Analyze the user's focus and productivity strictly based on this data. Be objective. No fluff.\n\nData:\n{user_context}"
     
     payload = {
-        "model": "llama3-70b-8192",
+        "model": "llama3-8b-8192",  # NAYA LIVE MODEL YAHAN UPDATE KIYA HAI
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.3
     }

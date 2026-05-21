@@ -26,7 +26,6 @@ def parse_user_input(user_input: str) -> dict:
         "Content-Type": "application/json"
     }
 
-    # Fixing the 400 Error: Groq STRICTLY needs the word 'JSON' in the system prompt.
     system_prompt = "You are a data processor. You must output ONLY valid JSON. No conversational text. No markdown blockquotes."
     
     user_prompt = f"""
@@ -55,7 +54,7 @@ def parse_user_input(user_input: str) -> dict:
     """
 
     payload = {
-        "model": "llama3-70b-8192",
+        "model": "llama3-8b-8192",  # NAYA LIVE MODEL YAHAN UPDATE KIYA HAI
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
@@ -68,7 +67,6 @@ def parse_user_input(user_input: str) -> dict:
         response = requests.post(url, headers=headers, json=payload, timeout=15)
         if response.status_code == 200:
             text = response.json()["choices"][0]["message"]["content"].strip()
-            # Failsafe regex to extract JSON if AI adds extra characters
             match = re.search(r'\{.*\}', text, re.DOTALL)
             clean_json = match.group(0) if match else text
             return json.loads(clean_json)
