@@ -1,0 +1,112 @@
+[
+  {
+    "test_name": "Root endpoint",
+    "method": "GET",
+    "path": "/",
+    "status_code": 200,
+    "response_time_ms": 1575.76,
+    "success": true,
+    "content_length": 80,
+    "has_json": true,
+    "error": null
+  },
+  {
+    "test_name": "GET /api/karma",
+    "method": "GET",
+    "path": "/api/karma",
+    "status_code": 200,
+    "response_time_ms": 15.49,
+    "success": true,
+    "content_length": 384,
+    "has_json": true,
+    "error": null
+  },
+  {
+    "test_name": "POST /api/chat",
+    "method": "POST",
+    "path": "/api/chat",
+    "status_code": 200,
+    "response_time_ms": 2930.21,
+    "success": true,
+    "content_length": 1300,
+    "has_json": true,
+    "error": null
+  },
+  {
+    "test_name": "GET /api/tasks",
+    "method": "GET",
+    "path": "/api/tasks",
+    "status_code": 200,
+    "response_time_ms": 21.81,
+    "success": true,
+    "content_length": 36,
+    "has_json": true,
+    "error": null
+  },
+  {
+    "test_name": "PATCH /api/tasks/{id} (invalid ID)",
+    "method": "PATCH",
+    "path": "/api/tasks/00000000-0000-0000-0000-000000000000",
+    "status_code": 200,
+    "response_time_ms": 3.75,
+    "success": true,
+    "content_length": 35,
+    "has_json": true,
+    "error": null
+  },
+  {
+    "test_name": "GET /api/health",
+    "method": "GET",
+    "path": "/api/health",
+    "status_code": 200,
+    "response_time_ms": 10.84,
+    "success": true,
+    "content_length": 1335,
+    "has_json": true,
+    "error": null
+  },
+  {
+    "test_name": "GET /api/provider-health",
+    "method": "GET",
+    "path": "/api/provider-health",
+    "status_code": 200,
+    "response_time_ms": 7.36,
+    "success": true,
+    "content_length": 2112,
+    "has_json": true,
+    "error": null
+  },
+  {
+    "test_name": "GET /api/provider-audit",
+    "method": "GET",
+    "path": "/api/provider-audit",
+    "status_code": 200,
+    "response_time_ms": 6.73,
+    "success": true,
+    "content_length": 1861,
+    "has_json": true,
+    "error": null
+  },
+  {
+    "test_name": "GET /api/token-audit",
+    "method": "GET",
+    "path": "/api/token-audit",
+    "status_code": 200,
+    "response_time_ms": 5.65,
+    "success": true,
+    "content_length": 1275,
+    "has_json": true,
+    "error": null
+  },
+  {
+    "test_name": "GET /api/karma-summary",
+    "method": "GET",
+    "path": "/api/karma-summary",
+    "status_code": 200,
+    "response_time_ms": 6.82,
+    "success": true,
+    "content_length": 308,
+    "has_json": true,
+    "error": null
+  }
+]

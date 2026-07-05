@@ -1,5 +1,22 @@
+# --- Node.js ---
+node_modules/
+.next/
+out/
+build/
 .env
+.DS_Store
+*.log
+
+# --- Python ---
 __pycache__/
 *.pyc
-core/__pycache__/
 .venv/
+env/
+venv/
+.env
+
+# --- VS Code ---
+.vscode/
+
+# --- Python cache / stray core.* files in frontend ---
+core.[0-9]*
