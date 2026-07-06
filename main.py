@@ -56,12 +56,20 @@ app = FastAPI(title="ChitraGupta 2.0", version="2.0.0")
 # CORS middleware for frontend communication
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000","https://chitra-gupta-2-0.vercel.app"],
+    allow_origins=[
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+
+    "https://chitra-gupta-2-0.vercel.app",
+
+    "https://chitra-gupta-2-0-c7meklktj-anshumanraj.vercel.app",
+],
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
-
 # Include all routers — these own the real endpoints
 app.include_router(karma_router)
 app.include_router(chat_router)
