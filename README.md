@@ -332,26 +332,6 @@ ChitraGupta-2.0/
 - **Runtime audit** per LLM call: provider, model, tokens (in/out/total), latency, fallback depth, structured output mode
 - **Token audit** per role: chat, memory, profiler, shadow, fallback
 
-## ⚠️ Known Limitations
-
-1. **No Authentication** — `user_id` passed in request body/header (dev only)
-2. **Supabase Optional** — In-memory fallback loses data on restart
-3. **No Rate Limiting** — Chat endpoint vulnerable to abuse
-4. **No Streaming** — Full LLM response before returning
-5. **Embeddings Not Implemented** — Memory uses text matching only
-6. **Frontend-Backend Type Mismatch** — Frontend expects `discipline_score`, backend returns different fields
-
-## 🔮 Roadmap
-
-- [ ] Add Supabase Auth + JWT validation
-- [ ] Rate limiting on `/api/chat`
-- [ ] Streaming LLM responses (Server-Sent Events)
-- [ ] pgvector embeddings for semantic memory
-- [ ] Background workers for daily reviews/summarization
-- [ ] WebSocket support for real-time updates
-- [ ] Mobile app (React Native)
-- [ ] Voice interface (STT/TTS)
-
 ---
 
 *Version 2.0.0 | Built with deterministic policy + multi-provider LLM intelligence*
