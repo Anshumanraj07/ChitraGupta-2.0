@@ -34,6 +34,7 @@ from core.endpoints.karma import router as karma_router
 from core.endpoints.chat import router as chat_router
 from core.endpoints.tasks import router as tasks_router
 from core.endpoints.review import router as review_router
+from core.endpoints.auth import router as auth_router
 from core.endpoints.chat import _get_session_data  # re-export for legacy callers
 
 # Observability (provider audit) — lives here because it is app-level metadata
@@ -54,16 +55,21 @@ logging.basicConfig(level=logging.INFO)
 app = FastAPI(title="ChitraGupta 2.0", version="2.0.0")
 
 # CORS middleware for frontend communication
+# Use env var for production origins; fallback to dev defaults
+_cors_origins = os.getenv("CORS_ORIGINS")
+if _cors_origins:
+    _allowed_origins = [o.strip() for o in _cors_origins.split(",") if o.strip()]
+else:
+    _allowed_origins = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "https://chitra-gupta-2-0.vercel.app",
+        "https://chitra-gupta-2-0-c7meklktj-anshumanraj.vercel.app",
+    ]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-
-    "https://chitra-gupta-2-0.vercel.app",
-
-    "https://chitra-gupta-2-0-c7meklktj-anshumanraj.vercel.app",
-],
+    allow_origins=_allowed_origins,
     allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
@@ -75,6 +81,87 @@ app.include_router(karma_router)
 app.include_router(chat_router)
 app.include_router(tasks_router)
 app.include_router(review_router)
+app.include_router(auth_router)
+
+
+# ---------------------------------------------------------------------------
+# Backend hardening — structured logging middleware + startup validation
+# ---------------------------------------------------------------------------
+import time
+import uuid as _uuid
+
+@app.middleware("http")
+async def _request_logging_middleware(request: Request, call_next):
+    """Attach a request id and log every request with latency + status."""
+    rid = request.headers.get("x-request-id") or _uuid.uuid4().hex[:12]
+    request.state.request_id = rid
+    start = time.perf_counter()
+    try:
+        response = await call_next(request)
+        duration_ms = (time.perf_counter() - start) * 1000
+        response.headers["x-request-id"] = rid
+        logger.info(
+            f"[{rid}] {request.method} {request.url.path} -> {response.status_code} ({duration_ms:.1f}ms)"
+        )
+        return response
+    except Exception as exc:
+        duration_ms = (time.perf_counter() - start) * 1000
+        logger.exception(f"[{rid}] {request.method} {request.url.path} ERROR ({duration_ms:.1f}ms): {exc}")
+        raise
+
+
+@app.middleware("http")
+async def _rate_limit_middleware(request: Request, call_next):
+    """Lightweight in-memory per-IP rate limit for the chat endpoint.
+
+    Throttles /api/chat to 30 requests / 60s / IP to prevent abuse without
+    adding external dependencies. Other endpoints are unaffected.
+    """
+    path = request.url.path
+    if path not in ("/api/chat", "/api/chat/legacy"):
+        return await call_next(request)
+
+    client = request.client.host if request.client else "unknown"
+    now = time.time()
+    bucket = _rate_limit_state.setdefault(client, [])
+    # purge old entries
+    while bucket and now - bucket[0] > 60:
+        bucket.pop(0)
+    if len(bucket) >= 30:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=429,
+            content={"detail": "Too many requests. Slow down."},
+            headers={"x-request-id": getattr(request.state, "request_id", "")},
+        )
+    bucket.append(now)
+    return await call_next(request)
+
+
+_rate_limit_state: dict = {}
+
+
+@app.on_event("startup")
+async def _startup_validation():
+    """Validate critical env vars and warn (not fail) if missing."""
+    required = {
+        "SUPABASE_URL": os.getenv("SUPABASE_URL"),
+        "SUPABASE_ANON_KEY": os.getenv("SUPABASE_ANON_KEY"),
+    }
+    missing = [k for k, v in required.items() if not v]
+    if missing:
+        logger.warning(
+            f"Startup: optional/missing env -> {missing}. DB features will degrade gracefully."
+        )
+    else:
+        logger.info("Startup: Supabase env present.")
+    # Provider health probe (does not block startup)
+    try:
+        from core.engine_shifter import get_provider_health
+        health = get_provider_health()
+        logger.info(f"Startup: provider health keys = {list(health.keys())}")
+    except Exception as e:
+        logger.warning(f"Startup: provider probe failed: {e}")
 
 
 # ---------------------------------------------------------------------------
