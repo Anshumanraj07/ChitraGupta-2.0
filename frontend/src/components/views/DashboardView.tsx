@@ -1,34 +1,30 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import type { ViewKey, KarmaData, Task, ProviderHealth } from "@/lib/types";
-import { API_BASE } from "@/lib/types";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import type { ViewKey, KarmaData, Task } from "@/lib/types";
 
 interface DashboardViewProps {
   tasks: Task[];
   karmaData: KarmaData | null;
   onViewChange: (v: ViewKey) => void;
-  providerHealth: ProviderHealth | null;
 }
 
 export default function DashboardView({
   tasks,
   karmaData,
   onViewChange,
-  providerHealth,
 }: DashboardViewProps) {
   const [isMounted, setIsMounted] = useState(false);
   const [coachInsight, setCoachInsight] = useState<string>("");
-  const [loadingInsight, setLoadingInsight] = useState(false);
 
   useEffect(() => {
-    setIsMounted(true);
-    // Generate coach insight based on data
     if (karmaData) {
       const insight = generateCoachInsight(karmaData, tasks);
       setCoachInsight(insight);
     }
+    // Set mounted after initial render to avoid SSR mismatch
+    setIsMounted(true);
   }, [karmaData, tasks]);
 
   const overview = karmaData?.overview;

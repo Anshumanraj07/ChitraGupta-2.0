@@ -309,3 +309,22 @@ input:focus, textarea:focus {
   z-index: 100;
   white-space: nowrap;
 }
+/* ===== ChitraGupta 2.0 polish: toast + skeleton + animations ===== */
+@keyframes slideInRight { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: translateX(0); } }
+.animate-in.slide-in-from-right { animation: slideInRight 0.25s ease-out; }
+
+@keyframes fadeInUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+.animate-fade-in-up { animation: fadeInUp 0.3s ease-out; }
+
+/* Loading skeleton shimmer */
+.skeleton { position: relative; overflow: hidden; background: rgba(63, 63, 70, 0.3); border-radius: 8px; }
+.skeleton::after { content: ''; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent); animation: shimmer 1.5s infinite; }
+@keyframes shimmer { 100% { transform: translateX(100%); } }
+
+/* Accessible focus ring */
+.focus-ring:focus-visible { outline: 2px solid #63666a; outline-offset: 2px; }
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .animate-in, .animate-fade-in-up, .skeleton::after { animation: none !important; }
+}

@@ -69,7 +69,7 @@ export default function ChatView({ onTasksUpdate }: ChatViewProps) {
         ego_score: data.ego_score,
         ego_labels: data.ego_labels,
         memory_context: data.memory_context,
-        tasks: (data.tasks || []).map((t: any, i: number) => ({
+          tasks: (data.tasks || []).map((t: Task, i: number) => ({
           ...t,
           id: Date.now() + i,
           completed: false,

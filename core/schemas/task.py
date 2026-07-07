@@ -64,8 +64,14 @@ class QualityTask(BaseModel):
     
     # Execution details
     estimated_duration_minutes: int = Field(ge=1, le=480)
-    micro_steps: List[str] = Field(default_factory=list)  # Atomic steps
+    micro_steps: List[str] = Field(default_factory=list)  # Atomic steps (subtasks)
+    sub_tasks: List[str] = Field(default_factory=list)  # alias kept for frontend compat
+    execution_tips: List[str] = Field(default_factory=list)  # Practical how-to guidance
     dependencies: List[str] = Field(default_factory=list)  # Other task IDs
+
+    # Energy & discipline (P7 structured task requirements)
+    energy_requirement: str = "low"  # low | medium | high
+    objective: str = ""  # one-line objective of this task
     
     # Adaptive fields
     review_condition: str = ""  # When to review: "end_of_day", "after_completion", "if_blocked"

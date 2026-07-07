@@ -22,16 +22,24 @@ class PolicyEngine:
     """
     Deterministic policy engine that decides what action to take
     before any LLM is invoked. Pure Python logic, no LLM calls.
+
+    Anti-repetition (P3): keeps a per-user action streak so the same action is
+    not repeated more than twice in a row. On the third consecutive repeat it
+    injects a `wait`/`reflect` cooldown so the conversation does not loop.
     """
     
     def __init__(self, rules: Optional[List[PolicyRule]] = None):
         self.rules = rules or DEFAULT_POLICY_RULES
         self._last_decision: Optional[PolicyDecision] = None
         self._decision_history: List[PolicyDecision] = []
+        # user_id -> list of recent actions (most recent last)
+        self._user_action_streak: Dict[str, List[str]] = {}
+        self._MAX_STREAK = 2  # after this many identical actions in a row, vary it
     
     def decide(self, context: PolicyContext) -> PolicyDecision:
         """
         Evaluate rules in priority order and return the first matching action.
+        Applies an anti-repetition constraint so coaching does not become repetitive.
         """
         # Update context with derived values
         self._enrich_context(context)
@@ -54,9 +62,41 @@ class PolicyEngine:
                         decision.coaching_strategy = context.coaching_strategy
                     if hasattr(context, 'pacing') and context.pacing:
                         decision.pacing = context.pacing
-                    
+
+                    # Anti-repetition: vary the action if it's been the same too often
+                    streak = self._user_action_streak.setdefault(context.user_id, [])
+                    if (
+                        rule.action == PolicyAction.ASK_QUESTION
+                        and len(streak) >= self._MAX_STREAK
+                        and all(a == PolicyAction.ASK_QUESTION.value for a in streak[-self._MAX_STREAK:])
+                    ):
+                        # Too many questions in a row -> reflect instead to break the loop
+                        decision = PolicyDecision(
+                            action=PolicyAction.REFLECT,
+                            confidence=max(0.6, decision.confidence - 0.1),
+                            reasoning=f"Rule '{rule.name}' matched, but switched to REFLECT to avoid repetitive questioning.",
+                            parameters=rule.parameters.copy(),
+                        )
+                        decision.coaching_strategy = getattr(context, "coaching_strategy", None)
+                        decision.pacing = getattr(context, "pacing", None)
+                    elif streak and streak[-1] == rule.action.value and len(set(streak[-3:])) == 1 and len(streak) >= 3:
+                        # Any action repeated 3x in a row -> wait to let the user speak
+                        decision = PolicyDecision(
+                            action=PolicyAction.WAIT,
+                            confidence=0.5,
+                            reasoning=f"Action '{rule.action.value}' repeated 3x - WAIT to let the user lead.",
+                            parameters={},
+                        )
+                        decision.coaching_strategy = getattr(context, "coaching_strategy", None)
+                        decision.pacing = getattr(context, "pacing", None)
+
                     self._last_decision = decision
                     self._decision_history.append(decision)
+
+                    # Track action streak (bounded)
+                    streak.append(decision.action.value)
+                    if len(streak) > 10:
+                        self._user_action_streak[context.user_id] = streak[-6:]
                     
                     # Keep history bounded
                     if len(self._decision_history) > 100:

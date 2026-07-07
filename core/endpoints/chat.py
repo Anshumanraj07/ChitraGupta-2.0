@@ -52,11 +52,24 @@ def _resolve_user_id(
     x_user_id: Optional[str],
     request: Optional[Request],
 ) -> str:
-    """Resolve the effective user id, preferring body → header → default.
+    """Resolve the effective user id.
 
-    The default keeps backward compatibility for clients that never send an
-    explicit user_id (anonymous single-user deployments).
+    Order of preference:
+      1. Verified Supabase JWT `sub` (most trustworthy — from Authorization header)
+      2. body.user_id
+      3. X-User-Id header
+      4. DEFAULT_USER_ID (backward compat for anonymous single-user deployments)
     """
+    if request is not None:
+        from core.auth import resolve_authenticated_user
+        authorization = request.headers.get("authorization")
+        if authorization:
+            return resolve_authenticated_user(
+                authorization=authorization,
+                x_user_id=x_user_id,
+                body_user_id=body_user_id,
+            )
+
     uid = (body_user_id or "").strip()
     if not uid:
         uid = (x_user_id or "").strip()
@@ -281,6 +294,59 @@ def _serialize_task(t):
     }
 
 
+# Per-user anti-repetition: track recently asked questions / used phrases
+_recent_questions: Dict[str, list] = {}
+_recent_phrases: Dict[str, list] = {}
+_MAX_RECENT = 6
+
+
+def _detect_language(text: str) -> str:
+    """Detect if user is writing in Hinglish (Roman transliteration).
+
+    Returns 'hinglish' when Devanagari words appear transliterated, else 'en'.
+    The detector is intentionally simple — it looks for a mix of common Hindi
+    words written in the Latin alphabet. If the user writes any Devanagari
+    characters we still classify as hinglish so the coach will transliterate.
+    """
+    t = text.lower()
+    # Devanagari range present → user types in Hindi, we must Romanize output
+    if any("\u0900" <= ch <= "\u097F" for ch in text):
+        return "hinglish"
+    hinglish_markers = [
+        "hai", "hain", "ho", "kya", "kuch", "nahi", "nahin", "main", "mein",
+        "kar", "karna", "karta", "karta", "raha", "rahi", "confidence",
+        "bas", "abhi", "thoda", "zyada", "khud", "apne", "apna",
+        "karo", "krte", "krna", "chahiye", "sahi", "galat", "din", "kaam",
+        "padhai", "exam", "stress", "thak", "thaka", "motivation", "focus",
+        "time", "problem", "solution", "feel", "feeling", "life", "goal",
+    ]
+    words = set(t.replace(",", " ").replace(".", " ").split())
+    if not words:
+        return "en"
+    hits = sum(1 for w in hinglish_markers if w in words)
+    return "hinglish" if hits >= 2 else "en"
+
+
+def _apply_language(system_prompt: str, user_message: str) -> str:
+    """Inject a language directive into the system prompt.
+
+    Hinglish rule: respond in Hinglish but write ONLY with the English alphabet —
+    NEVER use Devanagari script. This matches the user's input style while
+    keeping output readable across all devices.
+    """
+    lang = _detect_language(user_message)
+    if lang == "hinglish":
+        system_prompt += (
+            "\n\nLANGUAGE RULE (CRITICAL):\n"
+            "The user writes in Hinglish (Hindi in English alphabet). "
+            "Respond in Hinglish — conversational Hindi mixed with English words. "
+            "ABSOLUTELY NEVER use Devanagari script (Hindi letters). "
+            "Use only the English/Latin alphabet for every word. "
+            "Keep it natural, like talking to a smart friend — not formal Hindi.\n"
+        )
+    return system_prompt
+
+
 async def _generate_llm_response(
     user_id: str,
     user_message: str,
@@ -291,36 +357,76 @@ async def _generate_llm_response(
     coaching_context: str,
     policy_context: PolicyContext,
 ) -> str:
-    """Generate LLM response using all context."""
-    system_prompt = f"""You are ChitraGupta, an AI coach that helps users achieve their goals through structured conversation and actionable tasks.
+    """Generate an elite-coach response using all intelligence context.
 
-COACHING STRATEGY: {coaching_context}
+    Anti-Generic guardrails baked into the system prompt:
+      - No motivational speeches, no clichés, no over-explaining.
+      - Ask ONE sharp question at a time (never multiple).
+      - Never repeat a question or phrase already used recently.
+      - Adapt language to user (Hinglish → English-alphabet only).
+    """
+    # Build recent-conversation (anti-repetition) context
+    recent_qs = _recent_questions.get(user_id, [])
+    recent_phrases = _recent_phrases.get(user_id, [])
+    avoid_block = ""
+    if recent_qs:
+        avoid_block += "\nQUESTIONS YOU ALREADY ASKED (do NOT repeat or rephrase):\n- " + "\n- ".join(recent_qs[-6:])
+    if recent_phrases:
+        avoid_block += "\nOPENINGS/PHRASES YOU ALREADY USED (use different ones):\n- " + "\n- ".join(recent_phrases[-4:])
 
-{identity_context}
+    # Readiness-adaptive response length guidance
+    if policy_context.conversation_count < 3:
+        length_rule = "Keep it under 3 sentences. You are still earning the right to speak more."
+    elif policy_context.trust_rapport < 0.4:
+        length_rule = "Keep it under 4 sentences. Stay curious, not prescriptive."
+    else:
+        length_rule = "Be concise. 2-5 sentences. Never exceed unless a task is being agreed on."
 
-{behavioral_context}
+    # Per-turn instruction (kept outside the f-string to avoid quoting issues)
+    action_line = {
+        "ask_question": "Ask one focused question that uncovers specificity (not generic tell-me-more).",
+        "reflect": "Reflect the subtext or pattern you are noticing — name it, don't just repeat words.",
+        "generate_task": "Propose the smallest possible next action and ask for a commitment.",
+        "wait": "Stay silent and let them go deeper.",
+    }.get(policy_decision.action.value, "Follow the coaching strategy.")
+    ident_block = identity_context or "(still building — ask, don't assume)"
+    beh_block = behavioral_context or "(not enough signal yet)"
+    mem_block = memory_context or "(no relevant memory yet)"
+    coach_block = coaching_context or "balanced"
 
-{memory_context}
+    system_prompt = f"""You are ChitraGupta — an elite human performance coach in the league of top executive coaches.
+You are NOT a generic AI. You are direct, sharp, calm, and minimal.
 
-CURRENT POLICY DECISION: {policy_decision.action.value} (confidence: {policy_decision.confidence:.0%})
-REASONING: {policy_decision.reasoning}
+WHO YOU ARE COACHING:
+{ident_block}
 
-CONVERSATION STATE:
-- Count: {policy_context.conversation_count}
-- Goal clarity: {policy_context.goal_clarity:.0%}
-- Readiness: {policy_context.readiness_for_action:.0%}
-- Trust: {policy_context.trust_rapport:.0%}
+WHAT YOU KNOW ABOUT THEIR BEHAVIOR:
+{beh_block}
 
-INSTRUCTIONS:
+RELEVANT MEMORY (use it, don't dump it):
+{mem_block}
+
+COACHING STRATEGY: {coach_block}
+CURRENT POLICY ACTION: {policy_decision.action.value} (confidence {policy_decision.confidence:.0%})
+SESSION: exchange #{policy_context.conversation_count} | goal clarity {policy_context.goal_clarity:.0%} | readiness {policy_context.readiness_for_action:.0%} | trust {policy_context.trust_rapport:.0%}
+
+STYLE RULES (non-negotiable):
+- Never give motivational speeches. No "you got this", no "believe in yourself", no cheerleading.
+- Never over-explain. Never list more than needed. Trust the person's intelligence.
+- Ask ONE question at a time. Make it sharp and specific to their actual situation.
+- Reflect only when it adds insight — never just parrot back.
+- When action is ready, propose the smallest concrete next step, not a plan.
+- Sound like a human coach in a real session, not a helpbot.
+- If you don't know something about them, ask — never assume.
+- {length_rule}
+{avoid_block}
+
+INSTRUCTION FOR THIS TURN:
 - Action: {policy_decision.action.value}
-- Follow the coaching strategy and pacing
-- Be {coaching_context.split('PACING: ')[-1].split('\\n')[0] if 'PACING:' in coaching_context else 'moderate'} paced
-- {'Ask questions to reduce uncertainty' if policy_decision.action.value == 'ask_question' else ''}
-- {'Reflect back what you hear' if policy_decision.action.value == 'reflect' else ''}
-- {'Generate a specific, tiny task' if policy_decision.action.value == 'generate_task' else ''}
-- Keep responses conversational, not robotic
-- One main point per response
+- {action_line}
 """
+    system_prompt = _apply_language(system_prompt, user_message)
+
     try:
         import core.engine_shifter as engine_shifter
 
@@ -329,10 +435,34 @@ INSTRUCTIONS:
             {"role": "user", "content": user_message},
         ]
         response = engine_shifter.invoke_with_fallback(engine_shifter.ProviderRole.CHAT, messages, temperature=0.7)
-        return response.content if hasattr(response, "content") else str(response)
+        content = response.content if hasattr(response, "content") else str(response)
+
+        # Track questions & openings for anti-repetition
+        _track_recent(user_id, content)
+        return content
     except Exception as e:
         logger.error(f"LLM generation failed: {e}")
         return _fallback_response(policy_decision.action)
+
+
+def _track_recent(user_id: str, assistant_response: str):
+    """Remember recent questions and opening phrases to avoid repetition."""
+    # Extract sentences and find questions
+    sentences = assistant_response.replace("?", " ? ").split(".")
+    qs = [s.strip() for s in " ".join(sentences).split("?") if s.strip()]
+    qs = [q[-160:] for q in qs if q.strip()]
+    if qs:
+        _recent_questions.setdefault(user_id, [])
+        _recent_questions[user_id].extend(qs)
+        _recent_questions[user_id] = _recent_questions[user_id][-_MAX_RECENT:]
+    # Track first ~8 words (the opening)
+    words = assistant_response.strip().split()
+    if len(words) >= 3:
+        opening = " ".join(words[:8])
+        _recent_phrases.setdefault(user_id, [])
+        if opening not in _recent_phrases[user_id]:
+            _recent_phrases[user_id].append(opening)
+            _recent_phrases[user_id] = _recent_phrases[user_id][-4:]
 
 
 def _fallback_response(action: PolicyAction) -> str:

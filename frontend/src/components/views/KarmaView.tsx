@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
-import { LineChart, Line, BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import React, { useState, useMemo, useEffect } from "react";
+import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import type { KarmaData } from "@/lib/types";
 
 interface KarmaViewProps {
@@ -24,6 +24,9 @@ export default function KarmaView({ karmaData }: KarmaViewProps) {
     const entries = Object.entries(heatmap).sort((a, b) => a[0].localeCompare(b[0]));
     return entries.slice(-365); // Last 365 days
   }, [heatmap]);
+
+  const chartData = timeRange === "weekly" ? weeklyData : monthlyData;
+  const xAxisKey = timeRange === "weekly" ? "week_start" : "month";
 
   return (
     <div className="h-full overflow-y-auto scrollbar-thin p-4 sm:p-6 lg:p-8">
@@ -97,9 +100,9 @@ export default function KarmaView({ karmaData }: KarmaViewProps) {
         <div className="card p-5">
           <h3 className="text-sm font-medium text-zinc-300 mb-4">Karma Trend</h3>
           <div className="h-64">
-            {isMounted && (timeRange === "weekly" ? weeklyData : monthlyData).length > 0 ? (
+            {isMounted && chartData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={timeRange === "weekly" ? weeklyData : monthlyData}>
+                <AreaChart data={chartData as any}>
                   <defs>
                     <linearGradient id="karmaG" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#f97316" stopOpacity={0.3} />
@@ -107,7 +110,7 @@ export default function KarmaView({ karmaData }: KarmaViewProps) {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" />
-                  <XAxis dataKey={timeRange === "weekly" ? "week_start" : "month"} stroke="#444" tick={{ fontSize: 10 }} />
+                  <XAxis dataKey={xAxisKey} stroke="#444" tick={{ fontSize: 10 }} />
                   <YAxis stroke="#444" tick={{ fontSize: 10 }} />
                   <Tooltip
                     contentStyle={{ background: "#111113", border: "1px solid #27272a", borderRadius: "8px", fontSize: "12px" }}
@@ -129,11 +132,11 @@ export default function KarmaView({ karmaData }: KarmaViewProps) {
         <div className="card p-5">
           <h3 className="text-sm font-medium text-zinc-300 mb-4">Task Completion</h3>
           <div className="h-48">
-            {isMounted && (timeRange === "weekly" ? weeklyData : monthlyData).length > 0 ? (
+            {isMounted && chartData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={timeRange === "weekly" ? weeklyData : monthlyData}>
+                <BarChart data={chartData as any}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" />
-                  <XAxis dataKey={timeRange === "weekly" ? "week_start" : "month"} stroke="#444" tick={{ fontSize: 10 }} />
+                  <XAxis dataKey={xAxisKey} stroke="#444" tick={{ fontSize: 10 }} />
                   <YAxis stroke="#444" tick={{ fontSize: 10 }} />
                   <Tooltip
                     contentStyle={{ background: "#111113", border: "1px solid #27272a", borderRadius: "8px", fontSize: "12px" }}

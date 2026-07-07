@@ -34,6 +34,29 @@ export interface ChatMessage {
   tasks?: Task[];
 }
 
+export interface KarmaWeeklyTrend {
+  week: string;
+  karma: number;
+  tasks_completed: number;
+  tasks_attempted: number;
+  completion_rate: number;
+}
+
+export interface KarmaMonthlyTrend {
+  month: string;
+  karma: number;
+  tasks_completed: number;
+  tasks_attempted: number;
+  completion_rate: number;
+}
+
+export interface ProviderStatus {
+  status: "healthy" | "degraded" | "down";
+  latency_ms?: number;
+  last_check: string;
+  error?: string;
+}
+
 export interface KarmaData {
   overview: {
     total_karma: number;
@@ -45,13 +68,13 @@ export interface KarmaData {
     total_tasks_attempted: number;
     days_tracked: number;
   };
-  weekly_trends: any[];
-  monthly_trends: any[];
+  weekly_trends: KarmaWeeklyTrend[];
+  monthly_trends: KarmaMonthlyTrend[];
   completion_heatmap: Record<string, number>;
   goal_areas: Record<string, number>;
 }
 
 export interface ProviderHealth {
-  providers: Record<string, any>;
+  providers: Record<string, ProviderStatus>;
   report: string;
 }

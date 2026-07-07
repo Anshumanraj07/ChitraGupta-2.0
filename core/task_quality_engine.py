@@ -256,7 +256,13 @@ class TaskQualityEngine:
         
         # Determine review condition
         review_condition = self._determine_review_condition(request)
-        
+        execution_tips = self._generate_execution_tips(template, request)
+        energy = self._energy_for(difficulty, request)
+        objective = self._generate_objective(template, request)
+
+        # Mirror micro_steps into sub_tasks for frontend compatibility (P7)
+        sub_tasks = list(micro_steps)
+
         task = QualityTask(
             id=task_id,
             user_id=self.user_id,
@@ -270,6 +276,10 @@ class TaskQualityEngine:
             success_criteria=success_criteria,
             estimated_duration_minutes=duration,
             micro_steps=micro_steps,
+            sub_tasks=sub_tasks,
+            execution_tips=execution_tips,
+            energy_requirement=energy,
+            objective=objective,
             review_condition=review_condition,
             adaptation_strategy=adaptation,
             goal_area=request.goal_area,
@@ -278,8 +288,65 @@ class TaskQualityEngine:
             alignment_score=alignment,
             user_commitment_level=request.confidence_scores.get("readiness_for_action", 0.5),
         )
-        
+
         return task
+
+    def _energy_for(self, difficulty: TaskDifficulty, request: TaskGenerationRequest) -> str:
+        """Map difficulty + reported energy level to a task energy requirement."""
+        diff_val = self._difficulty_value(difficulty)
+        # If the user reports low energy, never prescribe a high-energy task
+        reported = (request.energy_level or "").lower()
+        if reported == "low":
+            return "low"
+        if diff_val >= 4:
+            return "high"
+        if diff_val == 3:
+            return "medium"
+        return "low"
+
+    def _generate_objective(self, template: Dict, request: TaskGenerationRequest) -> str:
+        """One-line objective of the task."""
+        title = template.get("title", "this task")
+        if request.goal:
+            return f"Make concrete progress toward: {request.goal} via '{title}'."
+        return f"Complete '{title}' to build momentum and a small win."
+
+    def _generate_execution_tips(self, template: Dict, request: TaskGenerationRequest) -> List[str]:
+        """Practical how-to guidance, tailored to the user's behavioral profile."""
+        tips = []
+        title = template.get("title", "").lower()
+        steps = template.get("steps", [])
+
+        # Generic, always-useful tips
+        if len(steps) >= 2:
+            tips.append("Do not skip step 1 — it's the anchor that makes the rest easy.")
+        tips.append("Start within the next 2 hours; momentum decays fast.")
+
+        # Behavioral tips
+        if request.behavioral_profile:
+            proc = request.behavioral_profile.get("procrastination_score", 0)
+            if proc > 0.5:
+                tips.append("Use a 2-minute rule: commit to just starting, not finishing.")
+            friction = request.behavioral_profile.get("task_friction_sensitivity_score", 0)
+            if friction > 0.5:
+                tips.append("Prep everything you need before you start — remove friction.")
+            perfection = request.behavioral_profile.get("perfectionism_score", 0)
+            if perfection > 0.5:
+                tips.append("Aim for 'done', not 'perfect'. Good enough counts.")
+
+        # Task-specific tips
+        if "walk" in title:
+            tips.append("No phone. Treat it as a reset, not exercise.")
+        if "read" in title:
+            tips.append("Read aloud one sentence — it doubles retention.")
+        if "message" in title or "email" in title:
+            tips.append("Keep it under 3 sentences. Send, then close the app.")
+        if "meditat" in title or "breath" in title:
+            tips.append("Phone on airplane mode. Eyes closed before you start the timer.")
+        if "plan" in title:
+            tips.append("Write it on paper. Digital planning turns into research rabbit holes.")
+
+        return tips[:5]  # keep concise
     
     def _generate_task_reason(self, template: Dict, request: TaskGenerationRequest) -> str:
         """Generate the 'why' for this task."""

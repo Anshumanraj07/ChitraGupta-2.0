@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import ChatView from "@/components/views/ChatView";
 import DashboardView from "@/components/views/DashboardView";
 import TasksView from "@/components/views/TasksView";
@@ -10,6 +10,7 @@ import ReviewView from "@/components/views/ReviewView";
 import SettingsView from "@/components/views/SettingsView";
 import Sidebar from "@/components/Sidebar";
 import TopBar from "@/components/TopBar";
+import AuthGuard from "@/components/AuthScreen";
 import {
   type ViewKey,
   type Task,
@@ -26,6 +27,7 @@ export default function Home() {
   const [providerHealth, setProviderHealth] = useState<ProviderHealth | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [isMobile, setIsMobile] = useState(false);
+  const isMounted = useRef(true);
 
   // Detect mobile
   useEffect(() => {
@@ -37,6 +39,7 @@ export default function Home() {
 
   // Auto-collapse sidebar on mobile
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     if (isMobile) setIsSidebarOpen(false);
   }, [isMobile]);
 
@@ -44,12 +47,12 @@ export default function Home() {
   const fetchTasks = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE}/api/tasks`);
-      if (res.ok) {
+      if (res.ok && isMounted.current) {
         const data = await res.json();
-        const tasksData = (data.data || data).map((t: any, i: number) => ({
-          ...(t as Omit<Task, "id">),
-          id: t.id || Date.now() + i,
-          completed: t.completed || false,
+        const tasksData = (data.data || data).map((t: Task, i: number) => ({
+          ...t,
+          id: t.id ?? Date.now() + i,
+          completed: t.completed ?? false,
         }));
         setTasks(tasksData);
       }
@@ -61,7 +64,7 @@ export default function Home() {
   const fetchKarma = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE}/api/karma`);
-      if (res.ok) {
+      if (res.ok && isMounted.current) {
         setKarmaData(await res.json());
       }
     } catch (err) {
@@ -72,7 +75,7 @@ export default function Home() {
   const fetchProviderHealth = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE}/api/provider-health`);
-      if (res.ok) {
+      if (res.ok && isMounted.current) {
         const data = await res.json();
         setProviderHealth({
           providers: {},
@@ -85,9 +88,13 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    isMounted.current = true;
     fetchTasks();
     fetchKarma();
     fetchProviderHealth();
+    return () => {
+      isMounted.current = false;
+    };
   }, [fetchTasks, fetchKarma, fetchProviderHealth]);
 
   const handleTasksUpdate = useCallback(() => {
@@ -106,6 +113,7 @@ export default function Home() {
   };
 
   return (
+    <AuthGuard>
     <div className="flex h-screen bg-[#0a0a0a] text-zinc-200 overflow-hidden">
       <Sidebar
         isOpen={isSidebarOpen}
@@ -133,7 +141,6 @@ export default function Home() {
               tasks={tasks}
               karmaData={karmaData}
               onViewChange={setActiveView}
-              providerHealth={providerHealth}
             />
           )}
           {activeView === "chat" && <ChatView onTasksUpdate={handleTasksUpdate} />}
@@ -153,5 +160,6 @@ export default function Home() {
         </div>
       </main>
     </div>
+    </AuthGuard>
   );
 }

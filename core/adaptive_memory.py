@@ -139,14 +139,24 @@ class AdaptiveMemory:
             self._cache_timestamp = datetime.utcnow()
     
     def _calculate_relevance(self, memory: MemoryEntry, query: MemoryQuery) -> float:
-        """Calculate relevance score for a memory given the query."""
+        """Calculate relevance score for a memory given the query.
+
+        Priority weighting (P6):
+          - Recency: recent memories surface faster (exponential decay)
+          - Importance: goal/habit/identity memories get stronger boosts
+          - Goal-related: explicit related_goal or goal-keyword match
+          - Habit-related: habit/routine memory type
+          - Identity-related: identity/behavioral-pattern memories
+        Also penalises low-value conversational noise so it does not clog the
+        top of the retrieval window.
+        """
         score = memory.relevance_score * 0.3  # Base relevance
-        
-        # Recency boost (exponential decay)
+
+        # Recency boost (exponential decay — last 20 days matter most)
         days_old = (datetime.utcnow() - memory.timestamp).days
         recency_boost = max(0, 1 - days_old * 0.05) * 0.2
         score += recency_boost
-        
+
         # Priority boost
         priority_weights = {
             MemoryPriority.CRITICAL: 0.3,
@@ -156,37 +166,72 @@ class AdaptiveMemory:
             MemoryPriority.ARCHIVAL: -0.1,
         }
         score += priority_weights.get(memory.priority, 0)
-        
+
         # Coaching effectiveness boost
         score += memory.coaching_effectiveness * 0.15
-        
+
+        # Importance boost — goal / habit / identity memories are intrinsically valuable
+        important_types = {
+            MemoryType.GOAL: 0.15,
+            MemoryType.IDENTITY: 0.15,
+            MemoryType.PATTERN: 0.1,
+            MemoryType.STRUGGLE: 0.08,
+            MemoryType.INSIGHT: 0.1,
+            MemoryType.INTERVENTION: 0.08,
+        }
+        score += important_types.get(memory.memory_type, 0.0)
+
+        # Goal-related boost — strongly prefer memories tied to the active goal
+        if query.goal:
+            goal_lower = query.goal.lower()
+            if memory.related_goal and memory.related_goal.lower() == goal_lower:
+                score += 0.2
+            elif goal_lower in memory.content.lower():
+                score += 0.12
+
+        # Struggle match
+        if query.struggle and query.struggle.lower() in memory.content.lower():
+            score += 0.1
+
+        # Habit-related boost — habits/routines should surface for action contexts
+        if memory.memory_type in (getattr(MemoryType, "HABIT", None), getattr(MemoryType, "ROUTINE", None)) or "habit" in memory.content.lower() or "routine" in memory.content.lower():
+            if query.current_context and any(
+                k in query.current_context.lower() for k in ("habit", "routine", "daily", "consistency", "streak", "missed")
+            ):
+                score += 0.15
+
+        # Identity-related boost — identity memories surface for reflection contexts
+        if memory.memory_type == MemoryType.IDENTITY:
+            if query.current_context and any(
+                k in query.current_context.lower() for k in ("who", "i am", "identity", "values", "believe", "always", "never", "struggle")
+            ):
+                score += 0.15
+
+        # Penalise low-value conversational noise (avoid irrelevant history dumps)
+        if memory.memory_type == MemoryType.CONVERSATION and memory.coaching_effectiveness < 0.3:
+            score -= 0.1
+
         # Context match
         context_match = self._match_context(memory, query)
         score += context_match * 0.25
-        
+
         # Behavioral pattern match
         if query.behavioral_patterns:
             pattern_match = len(set(memory.behavioral_patterns) & set(query.behavioral_patterns)) / max(len(query.behavioral_patterns), 1)
             score += pattern_match * 0.1
-        
+
         # Coaching strategy match
         if query.coaching_strategy and query.coaching_strategy in memory.retrieval_contexts:
             score += 0.1
-        
+
         # Active task match
         if query.active_task and query.active_task in memory.content:
             score += 0.15
-        
-        # Goal/struggle match
-        if query.goal and query.goal.lower() in memory.content.lower():
-            score += 0.1
-        if query.struggle and query.struggle.lower() in memory.content.lower():
-            score += 0.1
-        
-        # Access frequency (popular memories more relevant)
+
+        # Access frequency (popular memories more relevant, capped)
         access_boost = min(memory.access_count * 0.01, 0.1)
         score += access_boost
-        
+
         return max(0, min(1, score))
     
     def _match_context(self, memory: MemoryEntry, query: MemoryQuery) -> float:
